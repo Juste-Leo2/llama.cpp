@@ -15,7 +15,7 @@ TYPE_TO_FILE = {
     "llama_cparams": "llama-cparams.h",
     "llama_hparams": "llama-hparams.h",
     "llama_vocab": "llama-vocab.h",
-    "llama_layer": "llama-model.h",
+    "llama_layer": "llama-layer.h",
     "llm_graph_context": "llama-graph.h",
     "llm_graph_params": "llama-graph.h",
     "llama_kv_cache_context": "llama-kv-cache.h"
@@ -24,7 +24,7 @@ TYPE_TO_FILE = {
 FILES_TO_SCAN = [
     "src/llama-adapter.h", "src/llama-batch.h", "src/llama-context.h", "src/llama-cparams.h",
     "src/llama-ext.h", "src/llama-graph.h", "src/llama-hparams.h", "src/llama-memory.h",
-    "src/llama-model-loader.h", "src/llama-model-saver.h", "src/llama-model.h",
+    "src/llama-model-loader.h", "src/llama-model-saver.h", "src/llama-model.h", "src/llama-layer.h",
     "src/llama-vocab.h", "src/llama.cpp"
 ]
 
