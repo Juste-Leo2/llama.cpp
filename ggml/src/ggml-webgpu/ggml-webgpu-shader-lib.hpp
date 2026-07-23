@@ -1051,6 +1051,37 @@ struct ggml_webgpu_soft_max_pipeline_key_hash {
     }
 };
 
+// ── bonsai custom ops pipeline keys ────────────────────────────
+
+struct ggml_webgpu_rope_2d_pipeline_key {
+    bool inplace;
+
+    bool operator==(const ggml_webgpu_rope_2d_pipeline_key & other) const {
+        return inplace == other.inplace;
+    }
+};
+
+struct ggml_webgpu_rope_2d_pipeline_key_hash {
+    size_t operator()(const ggml_webgpu_rope_2d_pipeline_key & key) const {
+        return (size_t)key.inplace;
+    }
+};
+
+struct ggml_webgpu_b1_linear_pipeline_key {
+    // no distinguishing variants yet — just one shader for all F32
+    bool dummy;
+
+    bool operator==(const ggml_webgpu_b1_linear_pipeline_key & other) const {
+        return true;
+    }
+};
+
+struct ggml_webgpu_b1_linear_pipeline_key_hash {
+    size_t operator()(const ggml_webgpu_b1_linear_pipeline_key & key) const {
+        return 0;
+    }
+};
+
 class ggml_webgpu_shader_lib {
     wgpu::Device           device;
     pre_wgsl::Preprocessor preprocessor;
@@ -1133,6 +1164,16 @@ class ggml_webgpu_shader_lib {
         rms_norm_mul_pipelines;
     std::unordered_map<ggml_webgpu_upscale_pipeline_key, webgpu_pipeline, ggml_webgpu_upscale_pipeline_key_hash>
         upscale_pipelines;
+
+    // bonsai custom ops
+    std::unordered_map<ggml_webgpu_rope_2d_pipeline_key,
+                       webgpu_pipeline,
+                       ggml_webgpu_rope_2d_pipeline_key_hash>
+        rope_2d_pipelines;
+    std::unordered_map<ggml_webgpu_b1_linear_pipeline_key,
+                       webgpu_pipeline,
+                       ggml_webgpu_b1_linear_pipeline_key_hash>
+        b1_linear_pipelines;
 
   public:
     ggml_webgpu_shader_lib(wgpu::Device device) { this->device = device; }
@@ -3225,6 +3266,39 @@ class ggml_webgpu_shader_lib {
         pipeline_desc.compute.entryPoint = "main";   // Entry point in the WGSL code
         pipeline_desc.layout             = nullptr;  // nullptr means auto layout
         return { device.CreateComputePipeline(&pipeline_desc), label };
+    }
+
+    // ── bonsai custom ops pipeline getters ────────────────────────
+
+    webgpu_pipeline get_rope_2d_pipeline(const ggml_webgpu_shader_lib_context & context) {
+        ggml_webgpu_rope_2d_pipeline_key key = {};
+        key.inplace = ggml_webgpu_tensor_equal(context.src0, context.dst);
+
+        auto it = rope_2d_pipelines.find(key);
+        if (it != rope_2d_pipelines.end()) return it->second;
+
+        std::vector<std::string> defines;
+        defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
+
+        auto processed        = preprocessor.preprocess(wgsl_rope_2d, defines);
+        auto pipeline         = ggml_webgpu_create_pipeline(device, processed, "rope_2d");
+        rope_2d_pipelines[key] = pipeline;
+        return rope_2d_pipelines[key];
+    }
+
+    webgpu_pipeline get_b1_linear_pipeline(const ggml_webgpu_shader_lib_context & context) {
+        ggml_webgpu_b1_linear_pipeline_key key = {};
+
+        auto it = b1_linear_pipelines.find(key);
+        if (it != b1_linear_pipelines.end()) return it->second;
+
+        std::vector<std::string> defines;
+        defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
+
+        auto processed           = preprocessor.preprocess(wgsl_b1_linear, defines);
+        auto pipeline            = ggml_webgpu_create_pipeline(device, processed, "b1_linear");
+        b1_linear_pipelines[key] = pipeline;
+        return b1_linear_pipelines[key];
     }
 };
 

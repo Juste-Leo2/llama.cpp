@@ -2924,6 +2924,105 @@ static webgpu_encoded_op ggml_webgpu_upscale(webgpu_context ctx, ggml_tensor * s
     return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x, wg_y);
 }
 
+// ── bonsai custom ops: rope_2d ───────────────────────────────────
+
+static webgpu_encoded_op ggml_webgpu_rope_2d(webgpu_context & ctx, ggml_tensor * node) {
+    ggml_tensor * src0 = node->src[0];  // Q or K
+    ggml_tensor * src1 = node->src[1];  // cos
+    ggml_tensor * src2 = node->src[2];  // sin
+
+    ggml_webgpu_shader_lib_context shader_lib_ctx = {};
+    shader_lib_ctx.src0 = src0;
+    shader_lib_ctx.dst  = node;
+    shader_lib_ctx.max_wg_size = ctx->global_ctx->capabilities.limits.maxComputeInvocationsPerWorkgroup;
+
+    webgpu_pipeline pipeline = ctx->shader_lib->get_rope_2d_pipeline(shader_lib_ctx);
+    auto * decisions = static_cast<ggml_webgpu_generic_shader_decisions *>(pipeline.context.get());
+
+    // Read userdata for dimensions
+    struct ggml_custom_op_params op_p;
+    memcpy(&op_p, node->op_params, sizeof(op_p));
+    struct Rope2DUserData { int magic; int head_dim; int n_heads; int seq; };
+    Rope2DUserData * ud = (Rope2DUserData *)op_p.userdata;
+
+    uint32_t head_dim = (uint32_t)ud->head_dim;
+    uint32_t n_heads  = (uint32_t)ud->n_heads;
+    uint32_t seq      = (uint32_t)ud->seq;
+    uint32_t half     = head_dim / 2u;
+
+    uint32_t total_pairs = half * n_heads * seq;
+
+    std::vector<uint32_t> params = {
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, src0) / sizeof(float)),
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, src1) / sizeof(float)),
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, src2) / sizeof(float)),
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, node) / sizeof(float)),
+        head_dim,
+        n_heads,
+        seq,
+        half,
+    };
+
+    std::vector<wgpu::BindGroupEntry> entries = {
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 0, src0),
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 1, src1),
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 2, src2),
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 3, node),
+    };
+
+    uint32_t wg_x = CEIL_DIV(total_pairs, decisions->wg_size);
+    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x);
+}
+
+// ── bonsai custom ops: b1_linear ─────────────────────────────────
+
+static webgpu_encoded_op ggml_webgpu_b1_linear(webgpu_context & ctx, ggml_tensor * node) {
+    ggml_tensor * src0 = node->src[0];  // act
+    ggml_tensor * src1 = node->src[1];  // B1_0 weight (u8 bytes)
+
+    ggml_webgpu_shader_lib_context shader_lib_ctx = {};
+    shader_lib_ctx.src0 = src0;
+    shader_lib_ctx.dst  = node;
+    shader_lib_ctx.max_wg_size = ctx->global_ctx->capabilities.limits.maxComputeInvocationsPerWorkgroup;
+
+    webgpu_pipeline pipeline = ctx->shader_lib->get_b1_linear_pipeline(shader_lib_ctx);
+    auto * decisions = static_cast<ggml_webgpu_generic_shader_decisions *>(pipeline.context.get());
+
+    struct ggml_custom_op_params op_p;
+    memcpy(&op_p, node->op_params, sizeof(op_p));
+    struct B1LinearUserData { int magic; int in_dim; int out_dim; };
+    B1LinearUserData * ud = (B1LinearUserData *)op_p.userdata;
+
+    uint32_t in_dim  = (uint32_t)ud->in_dim;
+    uint32_t out_dim = (uint32_t)ud->out_dim;
+    uint32_t batch   = (uint32_t)node->src[0]->ne[1];
+
+    uint32_t num_blocks = in_dim / 32u;
+    uint32_t row_stride = num_blocks * 6u;
+
+    uint32_t total = batch * out_dim;
+
+    std::vector<uint32_t> params = {
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, src0) / sizeof(float)),
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, src1)),  // byte offset
+        (uint32_t)(ggml_webgpu_tensor_misalignment(ctx, node) / sizeof(float)),
+        batch,
+        in_dim,
+        out_dim,
+        num_blocks,
+        row_stride,
+    };
+
+    std::vector<wgpu::BindGroupEntry> entries = {
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 0, src0),
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 1, src1),
+        ggml_webgpu_make_tensor_bind_group_entry(ctx, 2, node),
+    };
+
+    uint32_t wg_x = CEIL_DIV(total, decisions->wg_size);
+    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x);
+}
+
 // Returns the encoded command, or std::nullopt if the operation is a no-op
 static std::optional<webgpu_encoded_op> ggml_webgpu_encode(webgpu_context ctx,
                                                            ggml_cgraph *  cgraph,
@@ -3036,6 +3135,18 @@ static std::optional<webgpu_encoded_op> ggml_webgpu_encode(webgpu_context ctx,
             return ggml_webgpu_im2col(ctx, src0, src1, node);
         case GGML_OP_UPSCALE:
             return ggml_webgpu_upscale(ctx, src0, node);
+        case GGML_OP_CUSTOM: {
+            struct ggml_custom_op_params p;
+            memcpy(&p, node->op_params, sizeof(p));
+            if (p.userdata != nullptr) {
+                int magic = *(int *)p.userdata;
+                if (magic == 0x31423142)
+                    return ggml_webgpu_b1_linear(ctx, node);
+                if (magic == 0x524F5045)  // "ROPE" as uint32 LE
+                    return ggml_webgpu_rope_2d(ctx, node);
+            }
+            return std::nullopt;
+        }
         default:
             return std::nullopt;
     }
@@ -4293,6 +4404,15 @@ static bool ggml_backend_webgpu_device_supports_op(ggml_backend_dev_t dev, const
             supports_op = (op->type == GGML_TYPE_F32 || op->type == GGML_TYPE_F16) &&
                           (src0->type == GGML_TYPE_F32 || src0->type == GGML_TYPE_F16);
             break;
+        case GGML_OP_CUSTOM: {
+            struct ggml_custom_op_params p;
+            memcpy(&p, op->op_params, sizeof(p));
+            if (p.userdata != nullptr) {
+                int magic = *(int *)p.userdata;
+                supports_op = (magic == 0x31423142 || magic == 0x524F5045);
+            }
+            break;
+        }
         default:
             break;
     }
