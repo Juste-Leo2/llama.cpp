@@ -3248,26 +3248,6 @@ class ggml_webgpu_shader_lib {
         return upscale_pipelines[key];
     }
 
-  private:
-    static webgpu_pipeline ggml_webgpu_create_pipeline(wgpu::Device & device,
-                                                       std::string    shader_code,
-                                                       std::string    label) {
-        wgpu::ShaderSourceWGSL shader_source;
-        shader_source.code = shader_code.c_str();
-
-        wgpu::ShaderModuleDescriptor shader_desc;
-        shader_desc.nextInChain = &shader_source;
-
-        wgpu::ShaderModule shader_module = device.CreateShaderModule(&shader_desc);
-
-        wgpu::ComputePipelineDescriptor pipeline_desc;
-        pipeline_desc.label              = label.c_str();
-        pipeline_desc.compute.module     = shader_module;
-        pipeline_desc.compute.entryPoint = "main";   // Entry point in the WGSL code
-        pipeline_desc.layout             = nullptr;  // nullptr means auto layout
-        return { device.CreateComputePipeline(&pipeline_desc), label };
-    }
-
     // ── bonsai custom ops pipeline getters ────────────────────────
 
     webgpu_pipeline get_rope_2d_pipeline(const ggml_webgpu_shader_lib_context & context) {
@@ -3300,6 +3280,27 @@ class ggml_webgpu_shader_lib {
         b1_linear_pipelines[key] = pipeline;
         return b1_linear_pipelines[key];
     }
+
+  private:
+    static webgpu_pipeline ggml_webgpu_create_pipeline(wgpu::Device & device,
+                                                       std::string    shader_code,
+                                                       std::string    label) {
+        wgpu::ShaderSourceWGSL shader_source;
+        shader_source.code = shader_code.c_str();
+
+        wgpu::ShaderModuleDescriptor shader_desc;
+        shader_desc.nextInChain = &shader_source;
+
+        wgpu::ShaderModule shader_module = device.CreateShaderModule(&shader_desc);
+
+        wgpu::ComputePipelineDescriptor pipeline_desc;
+        pipeline_desc.label              = label.c_str();
+        pipeline_desc.compute.module     = shader_module;
+        pipeline_desc.compute.entryPoint = "main";   // Entry point in the WGSL code
+        pipeline_desc.layout             = nullptr;  // nullptr means auto layout
+        return { device.CreateComputePipeline(&pipeline_desc), label };
+    }
+
 };
 
 #endif  // GGML_WEBGPU_SHADER_LIB_HPP
