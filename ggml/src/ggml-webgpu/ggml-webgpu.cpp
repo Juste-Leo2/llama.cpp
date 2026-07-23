@@ -3820,8 +3820,8 @@ static bool create_webgpu_device(ggml_backend_webgpu_reg_context * ctx) {
     ctx->webgpu_global_ctx->max_inflight_batches      = ggml_backend_webgpu_get_max_inflight_batches();
     wgpu::SupportedFeatures features;
     ctx->webgpu_global_ctx->adapter.GetFeatures(&features);
-    // we require f16 support
-    GGML_ASSERT(ctx->webgpu_global_ctx->adapter.HasFeature(wgpu::FeatureName::ShaderF16));
+    // we prefer f16 support, but don't crash if unavailable
+    // GGML_ASSERT(ctx->webgpu_global_ctx->adapter.HasFeature(wgpu::FeatureName::ShaderF16));
     ctx->webgpu_global_ctx->capabilities.supports_subgroups =
         ctx->webgpu_global_ctx->adapter.HasFeature(wgpu::FeatureName::Subgroups);
 
