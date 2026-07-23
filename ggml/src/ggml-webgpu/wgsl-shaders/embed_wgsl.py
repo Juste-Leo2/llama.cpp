@@ -23,7 +23,7 @@ def expand_includes(shader, input_dir):
     return include_pattern.sub(replacer, shader)
 
 
-def chunk_shader(shader_code, max_chunk_len=60000):
+def chunk_shader(shader_code, max_chunk_len=16000):
     """Split shader_code into safe raw-string sized chunks."""
     return [shader_code[i : i + max_chunk_len] for i in range(0, len(shader_code), max_chunk_len)]
 
