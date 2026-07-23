@@ -4551,7 +4551,8 @@ ggml_backend_reg_t ggml_backend_webgpu_reg() {
     // Probe for adapter support
     wgpu::Adapter adapter;
     if (ctx->webgpu_global_ctx->instance != nullptr) {
-        wgpu::RequestAdapterOptions options = {};
+    wgpu::RequestAdapterOptions options = {};
+    options.backendType = wgpu::BackendType::Vulkan;  // prefer Vulkan over D3D12
 
         // probe for adapter support
         ctx->webgpu_global_ctx->instance.WaitAny(
