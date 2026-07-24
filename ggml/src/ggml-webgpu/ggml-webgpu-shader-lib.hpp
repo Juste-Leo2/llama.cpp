@@ -3261,7 +3261,10 @@ class ggml_webgpu_shader_lib {
         defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
 
         auto processed        = preprocessor.preprocess(wgsl_rope_2d, defines);
+        auto decisions        = std::make_shared<ggml_webgpu_generic_shader_decisions>();
+        decisions->wg_size    = context.max_wg_size;
         auto pipeline         = ggml_webgpu_create_pipeline(device, processed, "rope_2d");
+        pipeline.context      = decisions;
         rope_2d_pipelines[key] = pipeline;
         return rope_2d_pipelines[key];
     }
@@ -3276,7 +3279,10 @@ class ggml_webgpu_shader_lib {
         defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
 
         auto processed           = preprocessor.preprocess(wgsl_b1_linear, defines);
+        auto decisions           = std::make_shared<ggml_webgpu_generic_shader_decisions>();
+        decisions->wg_size       = context.max_wg_size;
         auto pipeline            = ggml_webgpu_create_pipeline(device, processed, "b1_linear");
+        pipeline.context         = decisions;
         b1_linear_pipelines[key] = pipeline;
         return b1_linear_pipelines[key];
     }
