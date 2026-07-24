@@ -19,6 +19,7 @@ struct Params {
     out_dim: u32,
     num_blocks: u32,       // in_dim / 32
     row_stride: u32,       // num_blocks * 6
+    wg_x_count: u32
 }
 
 @group(0) @binding(0)
@@ -57,13 +58,14 @@ fn fp16_to_f32(bits: u32) -> f32 {
 
 @compute @workgroup_size(WG_SIZE)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let idx = gid.x + gid.y * params.wg_x_count * WG_SIZE;
     let total = params.batch * params.out_dim;
-    if (gid.x >= total) {
+    if (idx >= total) {
         return;
     }
 
-    let r = gid.x % params.out_dim;     // output row
-    let b = gid.x / params.out_dim;     // batch index
+    let r = idx % params.out_dim;     // output row
+    let b = idx / params.out_dim;     // batch index
 
     let act_base   = params.offset_act + b * params.in_dim;
     let wgt_base   = params.offset_weight + r * params.row_stride;
