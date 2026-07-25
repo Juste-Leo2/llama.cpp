@@ -59,6 +59,8 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>,
 
     // one thread per row
     var i = wid.x + wid.y * params.wg_x_count;
+    let n_rows = params.ne3 * params.ne2 * params.ne1;
+    if (i >= n_rows) { return; }
     let i3 = i / (params.ne2 * params.ne1);
     i = i % (params.ne2 * params.ne1);
     let i2 = i / params.ne1;
