@@ -38,7 +38,8 @@ struct Params {
     sections0: u32,
     sections1: u32,
     sections2: u32,
-    sections3: u32
+    sections3: u32,
+    wg_x_count: u32
 };
 
 @group(0) @binding(0)
@@ -145,7 +146,8 @@ fn pair_offset(is_neox: bool, is_mrope: bool, is_vision: bool) -> u32 {
 @compute @workgroup_size(WG_SIZE)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // two elements per n_threads
-    if (gid.x >= params.n_threads) {
+    var thread_idx = gid.x + gid.y * params.wg_x_count * WG_SIZE;
+    if (thread_idx >= params.n_threads) {
         return;
     }
 
@@ -154,7 +156,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let is_imrope = params.mode == 40;
     let is_vision = params.mode == 24;
 
-    var i = gid.x * 2; // start index for this thread
+    var i = thread_idx * 2; // start index for this thread
     let i3 = i / (params.ne2 * params.ne1 * params.ne0);
     i = i % (params.ne2 * params.ne1 * params.ne0);
     let i2 = i / (params.ne1 * params.ne0);

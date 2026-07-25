@@ -2490,8 +2490,12 @@ static webgpu_encoded_op ggml_webgpu_rope(webgpu_context & ctx,
         entries.push_back(ggml_webgpu_make_tensor_bind_group_entry(ctx, dst_binding, dst));
     }
 
-    uint32_t wg_x = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
-    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x);
+    uint32_t n_workgroups = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
+    const uint32_t max_wg_per_dim = ctx->global_ctx->capabilities.limits.maxComputeWorkgroupsPerDimension;
+    uint32_t wg_x = std::min(n_workgroups, max_wg_per_dim);
+    uint32_t wg_y = CEIL_DIV(n_workgroups, max_wg_per_dim);
+    params.push_back(wg_x);
+    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x, wg_y);
 }
 
 static webgpu_encoded_op ggml_webgpu_glu(webgpu_context & ctx,
@@ -2545,8 +2549,12 @@ static webgpu_encoded_op ggml_webgpu_glu(webgpu_context & ctx,
     }
     entries.push_back(ggml_webgpu_make_tensor_bind_group_entry(ctx, dst_binding, dst));
 
-    uint32_t wg_x = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
-    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x);
+    uint32_t n_workgroups = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
+    const uint32_t max_wg_per_dim = ctx->global_ctx->capabilities.limits.maxComputeWorkgroupsPerDimension;
+    uint32_t wg_x = std::min(n_workgroups, max_wg_per_dim);
+    uint32_t wg_y = CEIL_DIV(n_workgroups, max_wg_per_dim);
+    params.push_back(wg_x);
+    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x, wg_y);
 }
 
 static webgpu_encoded_op ggml_webgpu_scale(webgpu_context & ctx, ggml_tensor * src, ggml_tensor * dst) {
@@ -2584,8 +2592,12 @@ static webgpu_encoded_op ggml_webgpu_scale(webgpu_context & ctx, ggml_tensor * s
         entries.push_back(ggml_webgpu_make_tensor_bind_group_entry(ctx, 1, dst));
     }
 
-    uint32_t wg_x = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
-    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x);
+    uint32_t n_workgroups = CEIL_DIV(ggml_nelements(dst), decisions->wg_size);
+    const uint32_t max_wg_per_dim = ctx->global_ctx->capabilities.limits.maxComputeWorkgroupsPerDimension;
+    uint32_t wg_x = std::min(n_workgroups, max_wg_per_dim);
+    uint32_t wg_y = CEIL_DIV(n_workgroups, max_wg_per_dim);
+    params.push_back(wg_x);
+    return ggml_backend_webgpu_build(ctx, pipeline, params, entries, wg_x, wg_y);
 }
 
 static webgpu_encoded_op ggml_webgpu_soft_max(webgpu_context & ctx,

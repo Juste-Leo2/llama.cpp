@@ -91,6 +91,7 @@ struct Params {
     swapped: u32,
     alpha: f32,
     limit: f32,
+    wg_x_count: u32
 }
 
 @group(0) @binding(0)
@@ -135,11 +136,10 @@ fn b_value(base: u32) -> DataType {
 
 @compute @workgroup_size(WG_SIZE)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-    if (gid.x >= params.ne) {
+    var i = gid.x + gid.y * params.wg_x_count * WG_SIZE;
+    if (i >= params.ne) {
         return;
     }
-
-    var i = gid.x;
     let i3 = i / (params.ne2 * params.ne1 * params.ne0);
     i = i % (params.ne2 * params.ne1 * params.ne0);
     let i2 = i / (params.ne1 * params.ne0);
